@@ -174,7 +174,7 @@ def create_app(config_path: str | None = None) -> FastAPI:
             value=token,
             httponly=True,
             samesite="strict",
-            secure=True,  # Cloudflare Tunnel always uses HTTPS
+            secure=cfg["auth"].get("secure_cookie", False),
             max_age=cfg["auth"]["jwt_expire_hours"] * 3600,
         )
         return {"ok": True}
