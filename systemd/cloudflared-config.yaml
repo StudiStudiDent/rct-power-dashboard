@@ -1,0 +1,7 @@
+tunnel: solar-dashboard
+credentials-file: /home/solar/.cloudflared/solar-dashboard.json
+
+ingress:
+  - hostname: solar.deinname.de   # Replace with your domain
+    service: http://localhost:8000
+  - service: http_status:404

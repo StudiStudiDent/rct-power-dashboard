@@ -1,0 +1,44 @@
+services:
+  poller:
+    build:
+      context: .
+      dockerfile: Dockerfile.poller
+    restart: unless-stopped
+    volumes:
+      - solar-data:/data
+      - ./config.yaml:/app/config.yaml:ro
+    networks:
+      - internal
+    depends_on:
+      - dashboard
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    restart: unless-stopped
+    volumes:
+      - solar-data:/data
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "8000:8000"   # Only needed if NOT using Cloudflare Tunnel
+    networks:
+      - internal
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run solar-dashboard
+    volumes:
+      - ~/.cloudflared:/home/nonroot/.cloudflared:ro
+    networks:
+      - internal
+    depends_on:
+      - dashboard
+
+volumes:
+  solar-data:
+
+networks:
+  internal:
+    driver: bridge

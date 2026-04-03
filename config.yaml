@@ -1,0 +1,38 @@
+# RCT Power Dashboard — Configuration
+# Copy this file and adapt to your setup
+
+inverter:
+  host: "192.168.178.90"  # RCT Power inverter
+  port: 8899
+  poll_interval_seconds: 30
+  retry_min_seconds: 5
+  retry_max_seconds: 300  # 5 minutes max retry backoff
+
+database:
+  path: "/data/solar.db"
+  retention_days: 90
+  disk_warning_mb: 100  # warn and skip write if free disk < this
+
+auth:
+  username: "admin"
+  # Generate a strong password: python3 -c "import secrets; print(secrets.token_urlsafe(16))"
+  password: "changeme"
+  jwt_secret: "change-this-to-a-random-secret-string"
+  jwt_expire_hours: 24
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+api:
+  history_max_points: 500  # max downsampled data points per history request
+  websocket_push_interval_seconds: 30
+
+alerts:
+  enabled: false
+  # Get the ntfy.sh app on Android/iOS, then pick a unique private topic name
+  ntfy_topic: "my-solar-alerts-changeme"
+  ntfy_server: "https://ntfy.sh"  # or your self-hosted ntfy instance
+  battery_low_pct: 20             # alert when battery drops below this %
+  inverter_offline_minutes: 5     # alert when no data for this many minutes
+  check_interval_seconds: 60      # how often to run checks

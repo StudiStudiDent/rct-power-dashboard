@@ -1,0 +1,15 @@
+[Unit]
+Description=Cloudflare Tunnel for RCT Dashboard
+After=network.target rct-dashboard.service
+
+[Service]
+Type=simple
+User=solar
+ExecStart=/usr/local/bin/cloudflared tunnel run solar-dashboard
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

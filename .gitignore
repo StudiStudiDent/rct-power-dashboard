@@ -1,0 +1,13 @@
+*.pyc
+__pycache__/
+venv/
+.venv/
+*.db
+*.db-wal
+*.db-shm
+node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+.cloudflared/
+*.local
+config.yaml.local

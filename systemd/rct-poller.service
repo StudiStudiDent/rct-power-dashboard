@@ -1,0 +1,16 @@
+[Unit]
+Description=RCT Power Inverter Poller
+After=network.target
+
+[Service]
+Type=simple
+User=solar
+WorkingDirectory=/opt/rct-dashboard
+ExecStart=/opt/rct-dashboard/venv/bin/python rct-poller.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
