@@ -43,17 +43,19 @@ log = logging.getLogger(__name__)
 # RCT object IDs we care about — verified against rctclient registry
 OBJECT_IDS = {
     "battery_soc":      0x959930BF,  # battery.soc — 0..1 (multiply by 100 for %)
-    "pv_string1_w":     0xB55BA2CE,  # dc_conv.dc_conv_struct[0].p_dc — Watt
-    "pv_string2_w":     0xB0EBE75A,  # dc_conv.dc_conv_struct[1].p_dc — Watt
-    "grid_w":           0xA1266D6B,  # g_sync.p_ac_grid_sum — W (+= feed-in, -= draw)
-    "load_w":           0x1AC87AA0,  # g_sync.p_ac_load_total — W
-    "battery_w":        0x400F015B,  # battery.power — W (+= charging, -= discharging)
-    "inverter_temp":    0x5AF50FD7,  # inv_struct.temperature — °C
+    "pv_string1_w":     0xB5317B78,  # dc_conv.dc_conv_struct[0].p_dc — Watt
+    "pv_string2_w":     0xAA9AA253,  # dc_conv.dc_conv_struct[1].p_dc — Watt
+    "grid_w":           0x91617C58,  # g_sync.p_ac_grid_sum_lp — W (+= feed-in, -= draw)
+    "load_w":           0x1AC87AA0,  # g_sync.p_ac_load_sum_lp — W
+    "battery_w":        0x400F015B,  # g_sync.p_acc_lp — W (+= charging, -= discharging)
+    "inverter_temp":    0xC24E85D0,  # db.core_temp — °C
     "battery_status":   0x70A2AF4F,  # battery.bat_status — integer status code
 }
 
 
-def load_config(path: str = "config.yaml") -> dict:
+def load_config(path: str | None = None) -> dict:
+    if path is None:
+        path = "config.yaml.local" if Path("config.yaml.local").exists() else "config.yaml"
     with open(path) as f:
         return yaml.safe_load(f)
 
@@ -156,7 +158,18 @@ def read_object(sock: socket.socket, object_id: int) -> float | int | None:
                 break
 
         obj = R.get_by_id(object_id)
-        return obj.decode(recv.data)
+        data_type = obj.response_data_type
+        if data_type == DataType.FLOAT:
+            return struct.unpack('>f', recv.data)[0]
+        elif data_type in (DataType.INT32, DataType.INT16, DataType.INT8):
+            fmt = {DataType.INT32: '>i', DataType.INT16: '>h', DataType.INT8: '>b'}[data_type]
+            return struct.unpack(fmt, recv.data)[0]
+        elif data_type in (DataType.UINT32, DataType.UINT16, DataType.UINT8):
+            fmt = {DataType.UINT32: '>I', DataType.UINT16: '>H', DataType.UINT8: '>B'}[data_type]
+            return struct.unpack(fmt, recv.data)[0]
+        else:
+            log.debug("Unhandled data_type %s for object 0x%08X", data_type, object_id)
+            return None
 
     except Exception as e:
         log.debug("Error reading object 0x%08X: %s", object_id, e)

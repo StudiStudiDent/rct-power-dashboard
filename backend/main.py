@@ -34,7 +34,6 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, W
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from passlib.context import CryptContext
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -130,7 +129,9 @@ async def lifespan(app: FastAPI):
 
 # ─── App factory ──────────────────────────────────────────────────────────────
 
-def create_app(config_path: str = "config.yaml") -> FastAPI:
+def create_app(config_path: str | None = None) -> FastAPI:
+    if config_path is None:
+        config_path = "config.yaml.local" if Path("config.yaml.local").exists() else "config.yaml"
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
@@ -256,22 +257,28 @@ def create_app(config_path: str = "config.yaml") -> FastAPI:
 
     # ─── Static files + SPA fallback ─────────────────────────────────────────
     # NOTE: API routes above MUST be defined before the catch-all below.
-    # StaticFiles mount for assets (js, css, images)
+    # SvelteKit static adapter puts compiled JS/CSS in _app/, not assets/
 
-    if FRONTEND_DIST.exists():
+    if FRONTEND_DIST.exists() and (FRONTEND_DIST / "_app").exists():
         app.mount(
-            "/assets",
-            StaticFiles(directory=str(FRONTEND_DIST / "assets")),
-            name="assets",
+            "/_app",
+            StaticFiles(directory=str(FRONTEND_DIST / "_app")),
+            name="_app",
         )
 
+    if FRONTEND_DIST.exists():
         @app.get("/{full_path:path}", include_in_schema=False)
         async def spa_fallback(full_path: str):
             """
             SPA catch-all: returns index.html for all non-API routes.
             Required for SvelteKit client-side routing to work when navigating
             directly to a URL (e.g. /history, /stats).
+            Also serves manifest.json, sw.js etc. from dist/ directly.
             """
+            # Serve static files from dist root (manifest.json, sw.js, favicon...)
+            static_file = FRONTEND_DIST / full_path
+            if static_file.exists() and static_file.is_file():
+                return FileResponse(str(static_file))
             index = FRONTEND_DIST / "index.html"
             if index.exists():
                 return FileResponse(str(index))

@@ -8,29 +8,26 @@ Security decisions (from eng review):
 - No refresh token — 24h lifetime, re-login on expiry
 """
 
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Cookie, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
+import bcrypt
+from fastapi import Cookie, HTTPException, Request, status
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 limiter = Limiter(key_func=get_remote_address)
 
 ALGORITHM = "HS256"
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
 def hash_password(plain: str) -> str:
-    return pwd_context.hash(plain)
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
 
 def create_access_token(subject: str, secret: str, expire_hours: int) -> str:
