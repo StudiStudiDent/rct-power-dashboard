@@ -52,9 +52,11 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.75rem 1rem;
-    background: #1e293b;
-    border-bottom: 1px solid #334155;
+    padding: 0 1rem;
+    height: 56px;
+    background: #ffffff;
+    border-bottom: 1px solid #e0e0e0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -66,19 +68,18 @@
     gap: 0.75rem;
     flex: 1;
   }
-  .logo { font-size: 1rem; font-weight: 700; }
-  nav { display: flex; gap: 0.25rem; }
+  .logo { font-size: 0.9375rem; font-weight: 700; color: #212121; letter-spacing: -0.01em; }
+  nav { display: flex; gap: 0.125rem; }
   nav a {
-    padding: 0.375rem 0.75rem;
+    padding: 0.375rem 0.875rem;
     border-radius: 0.375rem;
     font-size: 0.875rem;
-    color: #94a3b8;
+    font-weight: 500;
+    color: #757575;
     transition: all 0.15s;
   }
-  nav a:hover, nav a.active {
-    background: #334155;
-    color: #f1f5f9;
-  }
+  nav a:hover { background: #f5f5f5; color: #212121; }
+  nav a.active { background: #fff8e1; color: #f59e0b; font-weight: 600; }
   .logout { font-size: 0.75rem; padding: 0.375rem 0.75rem; }
-  main { flex: 1; padding: 1rem; max-width: 900px; margin: 0 auto; width: 100%; }
+  main { flex: 1; padding: 1.25rem 1rem; max-width: 900px; margin: 0 auto; width: 100%; }
 </style>
