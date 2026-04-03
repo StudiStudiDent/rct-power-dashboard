@@ -12,7 +12,7 @@ Works behind DSLite (no public IPv4) via Cloudflare Tunnel.
 Auf dem **Proxmox-Host** (Shell oder SSH als root):
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/DEIN_USER/rct-power-dashboard/main/scripts/create-lxc.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/StudiStudiDent/rct-power-dashboard/main/scripts/create-lxc.sh)"
 ```
 
 Das Script:
@@ -67,7 +67,7 @@ scp -r . root@LXC_IP:/opt/rct-dashboard
 **Option B: via GitHub** (empfohlen wenn du das Projekt öffentlich teilen willst)
 ```bash
 # Erst auf GitHub ein neues Repo anlegen, dann:
-git clone https://github.com/DEIN_USER/rct-power-dashboard /opt/rct-dashboard
+git clone https://github.com/StudiStudiDent/rct-power-dashboard /opt/rct-dashboard
 ```
 
 ### Schritt 4 — Frontend auf dem Mac bauen

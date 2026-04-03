@@ -2,7 +2,7 @@
 # RCT Power Dashboard — Proxmox LXC Installer
 #
 # Ausführen auf dem Proxmox-HOST (nicht im LXC):
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/DEIN_USER/rct-power-dashboard/main/scripts/create-lxc.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/StudiStudiDent/rct-power-dashboard/main/scripts/create-lxc.sh)"
 #
 # Was dieses Script macht:
 #   1. Fragt nach VMID, IP-Adresse und Passwort
