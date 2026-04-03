@@ -157,6 +157,11 @@ def read_object(sock: socket.socket, object_id: int) -> float | int | None:
             if recv.complete():
                 break
 
+        # Verify response matches request — inverter can return stale frames
+        if recv.object_id != object_id:
+            log.debug("ID mismatch: expected 0x%08X, got 0x%08X", object_id, recv.object_id)
+            return None
+
         obj = R.get_by_id(object_id)
         data_type = obj.response_data_type
         if data_type == DataType.FLOAT:
