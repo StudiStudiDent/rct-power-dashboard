@@ -108,7 +108,24 @@ async def fetch_summary(db_path: str, limit: int = 3650) -> list[dict]:
             return [dict(r) for r in rows]
 
 
-async def fetch_latest_ts(db_path: str) -> Optional[int]:
+async def fetch_day_readings(db_path: str, date: str) -> list[dict]:
+    """
+    Returns all readings for a specific date (YYYY-MM-DD) in local time.
+    Used by Statistik page single-day view.
+    """
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        await db.execute("PRAGMA busy_timeout=5000")
+        async with db.execute("""
+            SELECT * FROM readings
+            WHERE date(ts, 'unixepoch', 'localtime') = ?
+            ORDER BY ts
+        """, (date,)) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+
+
     """Returns timestamp of the most recent reading from latest_reading. Used by WebSocket watcher."""
     async with aiosqlite.connect(db_path) as db:
         await db.execute("PRAGMA busy_timeout=5000")

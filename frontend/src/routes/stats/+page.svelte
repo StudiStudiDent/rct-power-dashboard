@@ -6,6 +6,13 @@
   let loading = true;
   let activeFilter = '30';
 
+  // Single-day state
+  let selectedDate = '';
+  let dayReadings: any[] = [];
+  let dayLoading = false;
+  let chartDayEl: HTMLDivElement;
+  let chartDay: ApexCharts | null = null;
+
   // Chart DOM refs
   let chartOverviewEl: HTMLDivElement;
   let chartPvUsageEl: HTMLDivElement;
@@ -31,13 +38,69 @@
     chartPvUsage?.destroy();
     chartEfficiency?.destroy();
     chartBalance?.destroy();
+    chartDay?.destroy();
   });
+
+  // --- Single-day date picker ---
+
+  async function loadDay(date: string) {
+    if (!date) return;
+    dayLoading = true;
+    activeFilter = `day:${date}`;
+    try {
+      const res = await fetch(`/api/history?date=${date}`, { credentials: 'include' });
+      if (res.ok) dayReadings = await res.json();
+      else dayReadings = [];
+    } finally {
+      dayLoading = false;
+      await tick();
+      renderDayChart();
+    }
+  }
+
+  function onDateInput(e: Event) {
+    const v = (e.target as HTMLInputElement).value;
+    if (v) loadDay(v);
+  }
+
+  // Derived KPIs for single day from summary table
+  $: dayRow = activeFilter.startsWith('day:')
+    ? summary.find(r => r.date === activeFilter.slice(4)) ?? null
+    : null;
+
+  function renderDayChart() {
+    if (!chartDayEl || dayReadings.length === 0) return;
+    const times = dayReadings.map(r => new Date(r.ts * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
+    const opts = {
+      chart: { ...chartBase, type: 'line', height: 260 },
+      theme: lightTheme,
+      stroke: { curve: 'smooth', width: [2, 2, 2, 2] },
+      xaxis: { categories: times, labels: { rotate: -45, style: { colors: '#757575', fontSize: '11px' } }, tickAmount: 12 },
+      yaxis: { labels: { formatter: (v: number) => `${Math.round(v)}W`, style: { colors: '#757575' } } },
+      tooltip: { y: { formatter: (v: number) => `${Math.round(v)} W` }, theme: 'light' },
+      grid: lightGrid,
+      legend: { position: 'top', labels: { colors: '#424242' } },
+      dataLabels: { enabled: false },
+      series: [
+        { name: '☀️ PV Gesamt', data: dayReadings.map(r => Math.round(((r.pv_string1_w ?? 0) + (r.pv_string2_w ?? 0))) ) },
+        { name: '🏠 Verbrauch',  data: dayReadings.map(r => Math.round(r.load_w ?? 0)) },
+        { name: '⬇️ Netz',       data: dayReadings.map(r => Math.round(r.grid_w ?? 0)) },
+        { name: '🔋 Batterie',   data: dayReadings.map(r => Math.round(r.battery_w ?? 0)) },
+      ],
+      colors: ['#f59e0b', '#1d4ed8', '#dc2626', '#16a34a'],
+    };
+    if (chartDay) { chartDay.destroy(); chartDay = null; }
+    chartDayEl.innerHTML = '';
+    chartDay = new ApexCharts(chartDayEl, opts);
+    chartDay.render();
+  }
 
   // --- Filter logic ---
 
   $: years = [...new Set(summary.map(r => r.date.slice(0, 4)))].sort().reverse();
 
   $: filtered = (() => {
+    if (activeFilter.startsWith('day:')) return [];
     if (activeFilter === 'all') return [...summary].reverse();
     if (activeFilter === '7')  return [...summary].slice(0, 7).reverse();
     if (activeFilter === '30') return [...summary].slice(0, 30).reverse();
@@ -150,30 +213,29 @@
     else { chartPvUsage = new ApexCharts(chartPvUsageEl, opts); chartPvUsage.render(); }
   }
 
-  // Chart 3: Autarkie & Eigenverbrauchsquote — dual area %
+  // Chart 3: Autarkie & Eigenverbrauchsquote — dual line %
   function renderEfficiency() {
     if (!chartEfficiencyEl || filtered.length === 0) return;
 
     const autarkyData = filtered.map(r => {
       const load = r.load_kwh ?? 0;
-      if (load <= 0) return null;
+      if (load <= 0) return 0;
       return +Math.min(100, Math.max(0, (load - (r.grid_draw_kwh ?? 0)) / load * 100)).toFixed(1);
     });
     const selfConsData = filtered.map(r => {
       const y = r.yield_kwh ?? 0;
-      if (y <= 0) return null;
+      if (y <= 0) return 0;
       return +Math.min(100, Math.max(0, (y - (r.grid_feed_kwh ?? 0)) / y * 100)).toFixed(1);
     });
 
     const opts = {
-      chart: { ...chartBase, type: 'area', height: 240, id: 'efficiency' },
+      chart: { ...chartBase, type: 'line', height: 240 },
       theme: lightTheme,
       stroke: { curve: 'smooth', width: [2, 2] },
-      fill: { type: 'gradient', gradient: { opacityFrom: 0.15, opacityTo: 0.02 } },
       markers: { size: filtered.length <= 14 ? 3 : 0 },
       xaxis: xLabels(filtered),
       yaxis: { min: 0, max: 100, labels: { formatter: (v: number) => `${Math.round(v)}%`, style: { colors: '#757575' } } },
-      tooltip: { y: { formatter: (v: number) => v !== null ? `${(+v).toFixed(0)}%` : '–' }, theme: 'light' },
+      tooltip: { y: { formatter: (v: number) => `${v.toFixed(0)}%` }, theme: 'light' },
       grid: lightGrid,
       legend: { position: 'top', labels: { colors: '#424242' } },
       series: [
@@ -186,6 +248,7 @@
       chartEfficiency.destroy();
       chartEfficiency = null;
     }
+    chartEfficiencyEl.innerHTML = '';
     chartEfficiency = new ApexCharts(chartEfficiencyEl, opts);
     chartEfficiency.render();
   }
@@ -217,7 +280,10 @@
   }
 
   function fmt(v: number, dec = 1): string { return v.toFixed(dec); }
-  function setFilter(f: string) { activeFilter = f; }
+  function setFilter(f: string) {
+    activeFilter = f;
+    selectedDate = '';
+  }
 </script>
 
 <svelte:head><title>Statistik – Solar Dashboard</title></svelte:head>
@@ -232,6 +298,13 @@
       <button class="btn {activeFilter === y ? 'btn-active' : 'btn-outline'}" on:click={() => setFilter(y)}>{y}</button>
     {/each}
     <button class="btn {activeFilter === 'all' ? 'btn-active' : 'btn-outline'}" on:click={() => setFilter('all')}>Gesamt</button>
+    <input
+      type="date"
+      class="date-input {activeFilter.startsWith('day:') ? 'date-active' : ''}"
+      bind:value={selectedDate}
+      on:change={onDateInput}
+      title="Einzelner Tag"
+    />
   </div>
 </div>
 
@@ -239,6 +312,61 @@
   <div class="loading">Lade Daten…</div>
 {:else if summary.length === 0}
   <div class="empty">Noch keine Daten vorhanden.</div>
+{:else if activeFilter.startsWith('day:')}
+
+  <!-- Single-day view -->
+  {#if dayLoading}
+    <div class="loading">Lade Tagesdaten…</div>
+  {:else}
+    {@const d = activeFilter.slice(4)}
+    <div class="day-header">
+      <span class="day-title">📅 {d}</span>
+    </div>
+    {#if dayRow}
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">☀️ PV Ertrag</div>
+          <div class="kpi-value amber">{fmt(dayRow.yield_kwh ?? 0)} <span class="unit">kWh</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">🔌 Einspeisung</div>
+          <div class="kpi-value green">{fmt(dayRow.grid_feed_kwh ?? 0)} <span class="unit">kWh</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">⬇️ Netzbezug</div>
+          <div class="kpi-value red">{fmt(dayRow.grid_draw_kwh ?? 0)} <span class="unit">kWh</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">🏠 Verbrauch</div>
+          <div class="kpi-value blue">{fmt(dayRow.load_kwh ?? 0)} <span class="unit">kWh</span></div>
+        </div>
+        {#if (dayRow.load_kwh ?? 0) > 0}
+          {@const aut = Math.round(Math.max(0, (dayRow.load_kwh - (dayRow.grid_draw_kwh ?? 0)) / dayRow.load_kwh * 100))}
+          <div class="kpi-card">
+            <div class="kpi-label">⚡ Autarkie</div>
+            <div class="kpi-value" style="color:{aut>70?'#16a34a':aut>30?'#f59e0b':'#dc2626'}">{aut}<span class="unit">%</span></div>
+          </div>
+        {/if}
+        {#if (dayRow.yield_kwh ?? 0) > 0}
+          {@const sc = Math.round(Math.max(0, Math.min(100, ((dayRow.yield_kwh - (dayRow.grid_feed_kwh ?? 0)) / dayRow.yield_kwh * 100))))}
+          <div class="kpi-card">
+            <div class="kpi-label">☀️ Eigenverbrauchsquote</div>
+            <div class="kpi-value amber">{sc}<span class="unit">%</span></div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+    {#if dayReadings.length > 0}
+      <div class="chart-card">
+        <div class="chart-title">Leistungsverlauf · {d}</div>
+        <div class="chart-desc">Alle Messpunkte des Tages (Watt)</div>
+        <div bind:this={chartDayEl} style="min-height:260px"></div>
+      </div>
+    {:else}
+      <div class="empty">Keine Messpunkte für diesen Tag in der Datenbank.</div>
+    {/if}
+  {/if}
+
 {:else}
 
   <!-- KPI Cards -->
@@ -294,7 +422,7 @@
   <div class="chart-card">
     <div class="chart-title">Autarkie & Eigenverbrauchsquote · täglich</div>
     <div class="chart-desc">Autarkie = wie viel vom Verbrauch kommt aus Solar. Eigenverbrauchsquote = wie viel PV-Strom wird selbst genutzt.</div>
-    <div bind:this={chartEfficiencyEl}></div>
+    <div bind:this={chartEfficiencyEl} style="min-height:240px"></div>
   </div>
 
   <!-- Chart 4: Energie-Bilanz -->
@@ -309,11 +437,17 @@
 <style>
   .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; }
   h2 { margin: 0; font-size: 1.125rem; font-weight: 600; color: #212121; }
-  .filter-row { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 0.375rem; align-items: center; }
   .btn { padding: 0.3rem 0.75rem; border-radius: 2rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid #e0e0e0; transition: all 0.15s; background: #fff; color: #757575; }
   .btn-active { background: #f59e0b; color: #fff; border-color: #f59e0b; }
   .btn-outline:hover { background: #f5f5f5; color: #212121; }
+  .date-input { padding: 0.25rem 0.5rem; border-radius: 0.5rem; border: 1px solid #e0e0e0; font-size: 0.8rem; color: #424242; background: #fff; cursor: pointer; height: 2rem; }
+  .date-input:focus { outline: none; border-color: #f59e0b; }
+  .date-active { border-color: #f59e0b; background: #fffbeb; }
   .loading, .empty { color: #757575; padding: 2rem; text-align: center; }
+
+  .day-header { margin-bottom: 0.75rem; }
+  .day-title { font-size: 1rem; font-weight: 600; color: #424242; }
 
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.625rem; margin-bottom: 1rem; }
   .kpi-card { background: #fff; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08); padding: 0.875rem 1rem; display: flex; flex-direction: column; gap: 0.2rem; }

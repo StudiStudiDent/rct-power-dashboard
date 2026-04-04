@@ -40,7 +40,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from backend.auth import create_access_token, hash_password, limiter, require_auth, verify_password
-from backend.db import fetch_history, fetch_latest, fetch_latest_ts, fetch_summary
+from backend.db import fetch_history, fetch_latest, fetch_latest_ts, fetch_summary, fetch_day_readings
 from backend.alerts import alerts_task
 
 log = logging.getLogger(__name__)
@@ -235,13 +235,17 @@ def create_app(config_path: str | None = None) -> FastAPI:
     @app.get("/api/history")
     async def history(
         hours: int = Query(default=24, ge=1, le=8760),
+        date: Optional[str] = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
         _user=Depends(require_auth),
     ):
         """
         Downsampled history. Max 500 points regardless of time window.
         hours: 1-8760 (1 hour to 1 year). Validated by FastAPI.
+        date: YYYY-MM-DD — if provided, returns all readings for that day (ignores hours).
         """
         db_path = cfg["database"]["path"]
+        if date is not None:
+            return await fetch_day_readings(db_path, date)
         max_points = cfg["api"]["history_max_points"]
         return await fetch_history(db_path, hours, max_points)
 
