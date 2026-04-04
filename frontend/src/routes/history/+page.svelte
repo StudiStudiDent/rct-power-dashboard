@@ -24,13 +24,13 @@
       const res = await fetch(`/api/history?hours=${hours}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Fehler beim Laden');
       data = await res.json();
-      await tick();
-      renderChart();
     } catch (e: any) {
       error = e.message;
     } finally {
       loading = false;
     }
+    await tick();
+    renderChart();
   }
 
   async function loadSummary() {
