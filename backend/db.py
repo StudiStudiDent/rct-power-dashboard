@@ -28,19 +28,25 @@ async def get_db(db_path: str):
 
 async def fetch_latest(db_path: str) -> Optional[dict]:
     """
-    Returns the most recent reading, or None if the DB is empty.
-    Used by GET /api/live.
+    Returns the most recent reading from latest_reading (updated every poll).
+    Falls back to readings table if latest_reading is empty (first start).
+    Used by GET /api/live and WebSocket push.
     """
     async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
         await db.execute("PRAGMA busy_timeout=5000")
         async with db.execute(
+            "SELECT * FROM latest_reading WHERE id = 1"
+        ) as cur:
+            row = await cur.fetchone()
+            if row is not None:
+                return dict(row)
+        # Fallback: latest_reading not yet populated
+        async with db.execute(
             "SELECT * FROM readings ORDER BY ts DESC LIMIT 1"
         ) as cur:
             row = await cur.fetchone()
-            if row is None:
-                return None
-            return dict(row)
+            return dict(row) if row else None
 
 
 async def fetch_history(db_path: str, hours: int, max_points: int = 500) -> list[dict]:
@@ -78,17 +84,17 @@ async def fetch_history(db_path: str, hours: int, max_points: int = 500) -> list
             SELECT * FROM (
                 SELECT *, ROW_NUMBER() OVER (ORDER BY ts) AS rn
                 FROM readings WHERE ts >= ?
-            ) WHERE rn % ? = 1
+            ) WHERE rn % ? = 0
             ORDER BY ts
         """, (cutoff, step)) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
 
-async def fetch_summary(db_path: str) -> list[dict]:
+async def fetch_summary(db_path: str, limit: int = 3650) -> list[dict]:
     """
-    Returns daily summary from the SQL view (last 90 days).
-    View is computed live from readings — no separate write process needed.
+    Returns daily summary. Default limit 3650 (~10 years) — effectively all data
+    for a home solar system. Caller can pass a smaller limit for performance.
     """
     async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
@@ -96,16 +102,23 @@ async def fetch_summary(db_path: str) -> list[dict]:
         async with db.execute("""
             SELECT * FROM daily_summary
             ORDER BY date DESC
-            LIMIT 90
-        """) as cur:
+            LIMIT ?
+        """, (limit,)) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
 
 async def fetch_latest_ts(db_path: str) -> Optional[int]:
-    """Returns only the timestamp of the most recent reading. Used by WebSocket watcher."""
+    """Returns timestamp of the most recent reading from latest_reading. Used by WebSocket watcher."""
     async with aiosqlite.connect(db_path) as db:
         await db.execute("PRAGMA busy_timeout=5000")
+        async with db.execute(
+            "SELECT ts FROM latest_reading WHERE id = 1"
+        ) as cur:
+            row = await cur.fetchone()
+            if row:
+                return row[0]
+        # Fallback
         async with db.execute(
             "SELECT ts FROM readings ORDER BY ts DESC LIMIT 1"
         ) as cur:

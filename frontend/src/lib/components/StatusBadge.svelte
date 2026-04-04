@@ -33,11 +33,11 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    color: #94a3b8;
+    color: #757575;
   }
   .dot { font-size: 0.6rem; }
-  .dot.live  { color: #22c55e; }
-  .dot.stale { color: #ef4444; }
-  .dot.unknown { color: #64748b; }
-  .status-badge.stale { color: #fca5a5; }
+  .dot.live    { color: #16a34a; }
+  .dot.stale   { color: #dc2626; }
+  .dot.unknown { color: #9e9e9e; }
+  .status-badge.stale { color: #dc2626; }
 </style>

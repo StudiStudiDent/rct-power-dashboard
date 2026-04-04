@@ -4,7 +4,8 @@
 inverter:
   host: "192.168.178.90"  # RCT Power inverter
   port: 8899
-  poll_interval_seconds: 30
+  poll_interval_seconds: 5      # how often to poll inverter (live display rate)
+  db_write_every: 6             # write to readings table every Nth poll (5s × 6 = 30s)
   retry_min_seconds: 5
   retry_max_seconds: 300  # 5 minutes max retry backoff
 
@@ -26,7 +27,7 @@ server:
 
 api:
   history_max_points: 500  # max downsampled data points per history request
-  websocket_push_interval_seconds: 30
+  websocket_push_interval_seconds: 5  # how often backend checks for new live data
 
 alerts:
   enabled: false

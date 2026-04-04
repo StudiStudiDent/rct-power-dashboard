@@ -22,8 +22,8 @@
   $: temp  = $liveData.inverter_temp;
 
   $: pvOn   = pv > 10;
-  $: batChg = batW > 10;
-  $: batDis = batW < -10;
+  $: batChg = batW < -10;   // negative = charging (inverter convention)
+  $: batDis = batW > 10;    // positive = discharging
   $: bezug  = gridW > 10;
   $: einsp  = gridW < -10;
 

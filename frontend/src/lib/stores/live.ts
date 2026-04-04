@@ -44,12 +44,23 @@ export const isStale = derived(dataAge, ($age) => $age !== null && $age > 120);
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+function sendVisibility() {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ visible: !document.hidden }));
+  }
+}
+
 export function connectWebSocket(): () => void {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const url = `${protocol}//${location.host}/ws/live`;
 
   function connect() {
     ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      // Tell backend our current visibility state immediately on connect
+      sendVisibility();
+    };
 
     ws.onmessage = (event) => {
       try {
@@ -59,7 +70,6 @@ export function connectWebSocket(): () => void {
     };
 
     ws.onclose = () => {
-      // Reconnect after 5 seconds
       reconnectTimer = setTimeout(connect, 5000);
     };
 
@@ -70,8 +80,11 @@ export function connectWebSocket(): () => void {
 
   connect();
 
-  // Return cleanup function
+  // Notify backend whenever tab visibility changes
+  document.addEventListener('visibilitychange', sendVisibility);
+
   return () => {
+    document.removeEventListener('visibilitychange', sendVisibility);
     if (reconnectTimer) clearTimeout(reconnectTimer);
     ws?.close();
     ws = null;

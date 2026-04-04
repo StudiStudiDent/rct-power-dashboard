@@ -23,8 +23,10 @@ Endpoints:
 """
 
 import asyncio
+import json
 import logging
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -48,31 +50,54 @@ FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 # ─── WebSocket connection manager ──────────────────────────────────────────────
 
 class ConnectionManager:
-    """Manages active WebSocket connections for live data push."""
+    """Manages active WebSocket connections for live data push.
+
+    Tracks per-connection visibility state (tab active vs background).
+    Push behaviour:
+      - visible clients  → push on every new reading (~30 s)
+      - background clients → push at most every BACKGROUND_PUSH_INTERVAL seconds
+      - no clients        → skip entirely
+    """
+
+    BACKGROUND_PUSH_INTERVAL = 300  # 5 minutes
 
     def __init__(self):
-        self._connections: list[WebSocket] = []
+        self._connections: dict[WebSocket, dict] = {}  # ws → {visible, last_push}
 
     async def connect(self, ws: WebSocket):
         await ws.accept()
-        self._connections.append(ws)
+        self._connections[ws] = {"visible": True, "last_push": 0.0}
 
     def disconnect(self, ws: WebSocket):
-        self._connections.remove(ws)
+        self._connections.pop(ws, None)
+
+    def set_visible(self, ws: WebSocket, visible: bool):
+        if ws in self._connections:
+            self._connections[ws]["visible"] = visible
+            log.debug("Client visibility → %s", "active" if visible else "background")
 
     async def broadcast(self, data: dict):
+        now = time.time()
         dead = []
-        for ws in self._connections:
+        for ws, state in self._connections.items():
+            # Skip background clients unless enough time has passed
+            if not state["visible"] and (now - state["last_push"]) < self.BACKGROUND_PUSH_INTERVAL:
+                continue
             try:
                 await ws.send_json(data)
+                state["last_push"] = now
             except Exception:
                 dead.append(ws)
         for ws in dead:
-            self._connections.remove(ws)
+            self._connections.pop(ws, None)
 
     @property
     def count(self) -> int:
         return len(self._connections)
+
+    @property
+    def visible_count(self) -> int:
+        return sum(1 for s in self._connections.values() if s["visible"])
 
 
 manager = ConnectionManager()
@@ -247,9 +272,15 @@ def create_app(config_path: str | None = None) -> FastAPI:
             reading = await fetch_latest(cfg["database"]["path"])
             if reading:
                 await ws.send_json(reading)
-            # Keep connection alive — push comes from ws_push_task
+            # Listen for visibility messages from client
             while True:
-                await ws.receive_text()  # client pings or disconnects
+                msg = await ws.receive_text()
+                try:
+                    data = json.loads(msg)
+                    if "visible" in data:
+                        manager.set_visible(ws, bool(data["visible"]))
+                except Exception:
+                    pass
         except WebSocketDisconnect:
             pass
         finally:

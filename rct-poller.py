@@ -47,7 +47,7 @@ OBJECT_IDS = {
     "pv_string2_w":     0xAA9AA253,  # dc_conv.dc_conv_struct[1].p_dc — Watt
     "grid_w":           0x91617C58,  # g_sync.p_ac_grid_sum_lp — W (+= feed-in, -= draw)
     "load_w":           0x1AC87AA0,  # g_sync.p_ac_load_sum_lp — W
-    "battery_w":        0x400F015B,  # g_sync.p_acc_lp — W (+= charging, -= discharging)
+    "battery_w":        0x400F015B,  # g_sync.p_acc_lp — W (-= charging, += discharging)
     "inverter_temp":    0xC24E85D0,  # db.core_temp — °C
     "battery_status":   0x70A2AF4F,  # battery.bat_status — integer status code
 }
@@ -214,6 +214,43 @@ def poll_once(host: str, port: int) -> dict | None:
         return None
 
 
+def write_latest(db_path: str, ts: int, values: dict) -> None:
+    """
+    Overwrite the single-row latest_reading table with the most recent poll.
+    Always id=1 — UPSERT pattern. Used by FastAPI for live display.
+    """
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("""
+        INSERT INTO latest_reading (
+            id, ts, battery_soc, pv_string1_w, pv_string2_w,
+            grid_w, load_w, battery_w, inverter_temp, battery_status
+        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            ts             = excluded.ts,
+            battery_soc    = excluded.battery_soc,
+            pv_string1_w   = excluded.pv_string1_w,
+            pv_string2_w   = excluded.pv_string2_w,
+            grid_w         = excluded.grid_w,
+            load_w         = excluded.load_w,
+            battery_w      = excluded.battery_w,
+            inverter_temp  = excluded.inverter_temp,
+            battery_status = excluded.battery_status
+    """, (
+        ts,
+        values.get("battery_soc"),
+        values.get("pv_string1_w"),
+        values.get("pv_string2_w"),
+        values.get("grid_w"),
+        values.get("load_w"),
+        values.get("battery_w"),
+        values.get("inverter_temp"),
+        values.get("battery_status"),
+    ))
+    conn.commit()
+    conn.close()
+
+
 def write_reading(db_path: str, ts: int, values: dict) -> None:
     """
     Write a reading to SQLite using UPSERT (ON CONFLICT(ts) DO UPDATE).
@@ -271,6 +308,7 @@ def main():
     host = inv["host"]
     port = inv["port"]
     interval = inv["poll_interval_seconds"]
+    db_write_every = inv.get("db_write_every", 1)  # default: write every poll
     retry_min = inv["retry_min_seconds"]
     retry_max = inv["retry_max_seconds"]
     db_path = db_cfg["path"]
@@ -282,7 +320,8 @@ def main():
     retry_delay = retry_min
     poll_count = 0
 
-    log.info("Polling %s:%d every %ds", host, port, interval)
+    log.info("Polling %s:%d every %ds, DB write every %d polls (%ds)",
+             host, port, interval, db_write_every, interval * db_write_every)
 
     while True:
         start = time.monotonic()
@@ -303,7 +342,13 @@ def main():
         retry_delay = retry_min
 
         ts = int(time.time())
-        write_reading(db_path, ts, values)
+
+        # Always update latest_reading for live display
+        write_latest(db_path, ts, values)
+
+        # Write to history readings table only every Nth poll
+        if poll_count % db_write_every == 0:
+            write_reading(db_path, ts, values)
 
         poll_count += 1
         if poll_count % 10 == 0:
