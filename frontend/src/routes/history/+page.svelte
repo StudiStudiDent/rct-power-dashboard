@@ -58,9 +58,9 @@
       theme: { mode: 'light' },
       stroke: { curve: 'smooth', width: 2 },
       fill: { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
+      dataLabels: { enabled: false },
       xaxis: {
         type: 'datetime',
-        categories: data.map((d) => d.ts * 1000),
         labels: { datetimeUTC: false, style: { colors: '#757575' } },
       },
       yaxis: { labels: { formatter: (v: number) => `${Math.round(v)} W`, style: { colors: '#757575' } } },
@@ -68,9 +68,9 @@
       grid: { borderColor: '#f0f0f0', strokeDashArray: 4 },
       legend: { position: 'top', labels: { colors: '#424242' } },
       series: [
-        { name: '☀️ PV Gesamt', data: data.map((d) => Math.round((d.pv_string1_w ?? 0) + (d.pv_string2_w ?? 0))) },
-        { name: '🏠 Verbrauch', data: data.map((d) => Math.round(d.load_w ?? 0)) },
-        { name: '🔌 Netz', data: data.map((d) => Math.round(d.grid_w ?? 0)) },
+        { name: '☀️ PV Gesamt', data: data.map((d) => [d.ts * 1000, Math.round((d.pv_string1_w ?? 0) + (d.pv_string2_w ?? 0))]) },
+        { name: '🏠 Verbrauch', data: data.map((d) => [d.ts * 1000, Math.round(d.load_w ?? 0)]) },
+        { name: '🔌 Netz',      data: data.map((d) => [d.ts * 1000, Math.round(d.grid_w ?? 0)]) },
       ],
       colors: ['#f59e0b', '#1d4ed8', '#dc2626'],
     };
