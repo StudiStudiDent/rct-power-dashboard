@@ -125,7 +125,7 @@ async def fetch_day_readings(db_path: str, date: str) -> list[dict]:
             return [dict(r) for r in rows]
 
 
-
+async def fetch_latest_ts(db_path: str) -> Optional[int]:
     """Returns timestamp of the most recent reading from latest_reading. Used by WebSocket watcher."""
     async with aiosqlite.connect(db_path) as db:
         await db.execute("PRAGMA busy_timeout=5000")
