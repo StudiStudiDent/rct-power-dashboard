@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import ApexCharts from 'apexcharts';
 
   let selectedHours = 24;
@@ -24,6 +24,7 @@
       const res = await fetch(`/api/history?hours=${hours}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Fehler beim Laden');
       data = await res.json();
+      await tick();
       renderChart();
     } catch (e: any) {
       error = e.message;
@@ -74,11 +75,12 @@
       colors: ['#f59e0b', '#1d4ed8', '#dc2626'],
     };
     if (chart) {
-      chart.updateOptions(options);
-    } else {
-      chart = new ApexCharts(chartEl, options);
-      chart.render();
+      chart.destroy();
+      chart = null;
     }
+    chartEl.innerHTML = '';
+    chart = new ApexCharts(chartEl, options);
+    chart.render();
   }
 
   function fmt(v: number | null, dec = 1): string {
@@ -116,7 +118,7 @@
 {:else}
   <div class="chart-wrapper">
     <p class="hint">{data.length} Messpunkte · {selectedHours}h</p>
-    <div bind:this={chartEl}></div>
+    <div bind:this={chartEl} style="min-height:280px"></div>
   </div>
 {/if}
 

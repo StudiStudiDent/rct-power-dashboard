@@ -132,7 +132,7 @@
   // --- Render all charts when data changes ---
 
   $: if (!loading && filtered.length > 0) {
-    tick().then(renderAllCharts);
+    tick().then(() => setTimeout(renderAllCharts, 0));
   }
 
   function renderAllCharts() {
@@ -152,7 +152,7 @@
   const lightGrid = { borderColor: '#f0f0f0', strokeDashArray: 4 };
   const xLabels = (rows: any[]) => ({
     categories: rows.map(r => r.date),
-    labels: { rotate: -45, style: { colors: '#757575', fontSize: '11px' }, formatter: (v: string) => v.slice(5) },
+    labels: { rotate: -45, style: { colors: '#757575', fontSize: '11px' }, formatter: (v: string) => (typeof v === 'string' && v.length >= 7 ? v.slice(5) : v) },
   });
 
   // Chart 1: Overview — grouped bars (Ertrag / Einspeisung / Bezug / Verbrauch)
