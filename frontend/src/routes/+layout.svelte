@@ -2,16 +2,23 @@
   import '../app.css';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { checkAuth, logout } from '$lib/stores/auth';
+  import { connectWebSocket } from '$lib/stores/live';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
+
+  let wsCleanup: (() => void) | null = null;
 
   onMount(async () => {
     const ok = await checkAuth();
     if (!ok && $page.url.pathname !== '/login') {
       goto('/login');
+    } else if (ok) {
+      wsCleanup = connectWebSocket();
     }
   });
+
+  onDestroy(() => wsCleanup?.());
 
   const navItems = [
     { href: '/',        label: '⚡ Live'      },
